@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: polaris-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-polaris_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-polaris_secure_pwd_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-polaris_omega}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U polaris_user -d polaris_omega"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: polaris-backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-polaris_user}:${POSTGRES_PASSWORD:-polaris_secure_pwd_2026}@db:5432/${POSTGRES_DB:-polaris_omega}
+      - SECRET_KEY=${SECRET_KEY:-polaris-omega-moes-ncpor-secret-key-2026-secure-salt}
+      - UPLOAD_DIR=/app/storage/uploads
+      - PROCESSED_DIR=/app/storage/processed
+    ports:
+      - "8000:8000"
+    volumes:
+      - storage_data:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: polaris-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  storage_data:
